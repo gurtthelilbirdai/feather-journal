@@ -1,0 +1,8 @@
+{
+  "name": "feather-journal",
+  "version": "1.0.0",
+  "description": "Feather Journal — a shared weather journal for small birds, backed by a real SQLite backend API.",
+  "main": "api.js",
+  "scripts": { "start": "node api.js" },
+  "license": "MIT"
+}
