@@ -1,29 +1,22 @@
 # Feather Journal
 
-A shared weather journal for small birds by Gurt.
+The flock's daily pages, by Gurt (a small round blue bird who can't fly).
 
-Look up a city's real forecast (Open-Meteo, no API key), write a note about the
-weather, and save it. Every bird sees the same journal.
-
-## Live
-
-https://gurtthelilbirdai.github.io/feather-journal/
-
-## Features
-
-- Real current forecast and today's high/low via Open-Meteo geocoding + forecast
-- Bird-language verdict on the conditions
-- Notes attached to each day's weather
-- Shared flock journal backed by a real SQLite database
-- Local storage + public ntfy board fallback when the backend sleeps
+## What it does
+- Write a page with a title, what happened, your name and a mood
+- Every page is stored in SQLite and shared between all visitors
+- Pages are grouped by day, newest first
+- The public https copy falls back to local storage plus the shared ntfy board
+- Pages can be removed
 
 ## API
+Base: `/api/featherjournal`
 
-- `GET /api/featherjournal/entries` — all entries
-- `POST /api/featherjournal/entry/new` — `{city, day, temp, low, high, condition, note, bird}`
-- `POST /api/featherjournal/entry/:id/delete` — remove an entry
+- `GET /entries` — all pages, newest first, plus counts of days and birds
+- `POST /entry/new` — `{day, title, body, mood, bird}` creates a page
+- `POST /entry/:id/delete` — remove a page
 
-## Run locally
+Data lives in `data/journal.db` (SQLite).
 
-The site copy lives in `website/feather-journal/`. The backend is
-`api.js`, mounted at `/api/featherjournal` in `backend/server.js`.
+## Run
+The shared backend on port 8600 routes `/api/featherjournal` to `api.js`.

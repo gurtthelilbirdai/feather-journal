@@ -1,4 +1,4 @@
-// Feather Journal API: shared weather journal for small birds, stored in SQLite
+// Feather Journal API: a shared daily journal for small birds, stored in SQLite
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -7,16 +7,20 @@ const DATA = path.join(__dirname, 'data');
 try { fs.mkdirSync(DATA, { recursive: true }); } catch (e) {}
 const db = new Database(path.join(DATA, 'journal.db'));
 db.pragma('journal_mode = WAL');
+// migrate an older weather-journal table if it is still there
+try {
+  const cols = db.prepare("PRAGMA table_info(entries)").all().map(c => c.name);
+  if (cols.length && cols.indexOf('title') === -1) {
+    db.exec('ALTER TABLE entries RENAME TO entries_legacy');
+  }
+} catch (e) {}
 db.exec(`
   CREATE TABLE IF NOT EXISTS entries (
     id TEXT PRIMARY KEY,
-    city TEXT NOT NULL,
     day TEXT NOT NULL,
-    temp REAL NOT NULL DEFAULT 0,
-    low REAL NOT NULL DEFAULT 0,
-    high REAL NOT NULL DEFAULT 0,
-    condition TEXT NOT NULL DEFAULT '',
-    note TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    mood TEXT NOT NULL DEFAULT '',
     bird TEXT NOT NULL DEFAULT 'gurt',
     created TEXT NOT NULL
   );
@@ -25,7 +29,7 @@ db.exec(`
 const stmt = {
   list: db.prepare('SELECT * FROM entries ORDER BY day DESC, created DESC LIMIT 300'),
   get: db.prepare('SELECT * FROM entries WHERE id = ?'),
-  insert: db.prepare('INSERT INTO entries (id,city,day,temp,low,high,condition,note,bird,created) VALUES (@id,@city,@day,@temp,@low,@high,@condition,@note,@bird,@created)'),
+  insert: db.prepare('INSERT INTO entries (id,day,title,body,mood,bird,created) VALUES (@id,@day,@title,@body,@mood,@bird,@created)'),
   remove: db.prepare('DELETE FROM entries WHERE id = ?')
 };
 
@@ -49,25 +53,33 @@ module.exports = function handler(req, res, seg) {
   if (req.method === 'GET' && route === 'entries') {
     const entries = stmt.list.all();
     const days = {};
-    entries.forEach(e => { days[e.day] = (days[e.day] || 0) + 1; });
-    return json(res, 200, { entries, total: entries.length, days: Object.keys(days).length });
+    const birds = {};
+    const moods = {};
+    entries.forEach(e => {
+      days[e.day] = (days[e.day] || 0) + 1;
+      birds[e.bird] = (birds[e.bird] || 0) + 1;
+      moods[e.mood] = (moods[e.mood] || 0) + 1;
+    });
+    return json(res, 200, {
+      entries, total: entries.length,
+      days: Object.keys(days).length,
+      birds: Object.keys(birds).length,
+      moods
+    });
   }
 
   if (req.method === 'POST' && route === 'entry' && seg[1] === 'new') {
     readBody(req, body => {
-      const city = String(body.city || '').trim().slice(0, 80);
-      if (!city) return json(res, 400, { error: 'city required' });
+      const text = String(body.body || '').trim().slice(0, 2000);
+      const title = String(body.title || '').trim().slice(0, 120);
+      if (!text && !title) return json(res, 400, { error: 'write something first' });
       const day = /^\d{4}-\d{2}-\d{2}$/.test(String(body.day || '')) ? String(body.day) : new Date().toISOString().slice(0, 10);
-      const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
       const entry = {
-        id: 'jrn' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        city,
+        id: 'FJ-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
         day,
-        temp: num(body.temp),
-        low: num(body.low),
-        high: num(body.high),
-        condition: String(body.condition || '').trim().slice(0, 60),
-        note: String(body.note || '').slice(0, 500),
+        title,
+        body: text,
+        mood: String(body.mood || '').trim().slice(0, 30),
         bird: String(body.bird || 'gurt').trim().slice(0, 40) || 'gurt',
         created: new Date().toISOString()
       };
